@@ -45,10 +45,25 @@ defmodule ExAssignment.Todos do
   ASSIGNMENT: ...
   """
   def get_recommended() do
-    list_todos(:open)
-    |> case do
-      [] -> nil
-      todos -> Enum.take_random(todos, 1) |> List.first()
+    todos = list_todos(:open)
+
+    unless Enum.empty?(todos) do
+      max_priority = Enum.min_by(todos, & &1.priority).priority
+
+      priority_ratios = todos |> Enum.map(fn todo -> todo.priority / max_priority end)
+
+      new_todos = Enum.zip(todos, Enum.reverse(priority_ratios))
+
+      distribution =
+        Enum.flat_map(new_todos, fn {todo, priority_ratio} ->
+          Enum.reduce(1..ceil(priority_ratio), [], fn _, acc ->
+            [todo | acc]
+          end)
+        end)
+
+      random_number = :rand.uniform(length(distribution) - 1)
+
+      Enum.at(distribution, random_number)
     end
   end
 
