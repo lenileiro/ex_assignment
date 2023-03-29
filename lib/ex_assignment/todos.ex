@@ -4,9 +4,63 @@ defmodule ExAssignment.Todos do
   """
 
   import Ecto.Query, warn: false
+  alias ExAssignment.Todos.Recommendation
   alias ExAssignment.Repo
 
   alias ExAssignment.Todos.Todo
+
+  @doc """
+  Creates a todo recommendation.
+  ## Examples
+
+      iex> create_todo_recommendation(%{field: value})
+      {:ok, %Recommendation{}}
+
+      iex> create_todo_recommendation(%{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+  """
+
+  def create_todo_recommendation(attrs \\ %{}) do
+    changeset = Recommendation.create_changeset(attrs)
+    Repo.insert(changeset)
+  end
+
+  @doc """
+  Updates a todo recommendation.
+
+  ## Examples
+
+      iex> update_todo_recommendation(todo, %{field: new_value})
+      {:ok, %Todo{}}
+
+      iex> update_todo_recommendation(todo, %{field: bad_value})
+      {:error, %Ecto.Changeset{}}
+
+  """
+  def update_todo_recommendation(%Recommendation{} = recommendation, attrs) do
+    recommendation
+    |> Recommendation.update_changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Gets todo recommendation.
+
+  return `nil` if the Todo does not exist.
+
+  ## Examples
+
+      iex> get_todo_recommendation()
+      %Recommendation{}
+
+      iex> get_todo_recommendation()
+      nil
+
+  """
+
+  def get_todo_recommendation do
+    Repo.one(from(r in Recommendation, where: is_nil(r.completed_at), preload: [:todo]))
+  end
 
   @doc """
   Returns the list of todos, optionally filtered by the given type.
@@ -46,8 +100,9 @@ defmodule ExAssignment.Todos do
   """
   def get_recommended() do
     todos = list_todos(:open)
+    current_recommendation = get_todo_recommendation()
 
-    unless Enum.empty?(todos) do
+    unless current_recommendation || Enum.empty?(todos) do
       max_priority = Enum.min_by(todos, & &1.priority).priority
 
       priority_ratios = todos |> Enum.map(fn todo -> todo.priority / max_priority end)
@@ -61,9 +116,14 @@ defmodule ExAssignment.Todos do
           end)
         end)
 
-      random_number = :rand.uniform(length(distribution) - 1)
+      random_number =
+        if(length(distribution) == 1, do: 0, else: :rand.uniform(length(distribution) - 1))
 
-      Enum.at(distribution, random_number)
+      todo = Enum.at(distribution, random_number)
+      {:ok, _} = create_todo_recommendation(%{todo_id: todo.id})
+      todo
+    else
+      if(current_recommendation, do: current_recommendation.todo)
     end
   end
 
@@ -158,6 +218,13 @@ defmodule ExAssignment.Todos do
 
   """
   def check(id) do
+    recommendation =
+      Repo.one(from(r in Recommendation, where: r.todo_id == ^id, where: is_nil(r.completed_at)))
+
+    if(recommendation) do
+      {:ok, _} = update_todo_recommendation(recommendation, %{completed_at: DateTime.utc_now()})
+    end
+
     {_, _} =
       from(t in Todo, where: t.id == ^id, update: [set: [done: true]])
       |> Repo.update_all([])

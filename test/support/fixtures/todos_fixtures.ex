@@ -19,4 +19,15 @@ defmodule ExAssignment.TodosFixtures do
 
     todo
   end
+
+  @doc """
+  Generate a todo recommendation.
+  """
+  def todo_recommendation_fixture(attrs \\ %{}) do
+    {:ok, recommendation} =
+      attrs
+      |> ExAssignment.Todos.create_todo_recommendation()
+
+    recommendation
+  end
 end
